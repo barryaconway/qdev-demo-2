@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .preview {
+            max-width: 300px;
+            max-height: 300px;
+            margin-top: 10px;
+        }
+        #photoList {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .photo-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        .photo-item img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .photo-info {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        #apiUrlForm {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Photo App</h1>
+    
+    <div class="container">
+        <!-- API Configuration -->
+        <div class="card">
+            <h2>API Configuration</h2>
+            <form id="apiUrlForm">
+                <div class="form-group">
+                    <label for="apiUrl">API URL:</label>
+                    <input type="text" id="apiUrl" placeholder="https://your-api-id.execute-api.region.amazonaws.com/dev" style="width: 100%;">
+                </div>
+                <button type="submit">Save API URL</button>
+            </form>
+            <div id="apiUrlMessage"></div>
+        </div>
+
+        <!-- Upload Photo Section -->
+        <div class="card">
+            <h2>Upload Photo</h2>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="photoFile">Select Photo:</label>
+                    <input type="file" id="photoFile" accept="image/*" required>
+                </div>
+                <div id="imagePreviewContainer" style="display: none;">
+                    <p>Preview:</p>
+                    <img id="imagePreview" class="preview">
+                </div>
+                <button type="submit">Upload Photo</button>
+            </form>
+            <div id="uploadMessage"></div>
+        </div>
+
+        <!-- Get Photo Section -->
+        <div class="card">
+            <h2>Get Photo</h2>
+            <form id="getPhotoForm">
+                <div class="form-group">
+                    <label for="photoId">Photo ID:</label>
+                    <input type="text" id="photoId" placeholder="Enter photo ID" required style="width: 100%;">
+                </div>
+                <button type="submit">Get Photo</button>
+            </form>
+            <div id="photoResult"></div>
+        </div>
+
+        <!-- Photo Gallery -->
+        <div class="card">
+            <h2>Photo Gallery</h2>
+            <p>Photos you've uploaded or retrieved will appear here.</p>
+            <div id="photoList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Store API URL in local storage
+        document.getElementById('apiUrlForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            if (apiUrl) {
+                localStorage.setItem('photoAppApiUrl', apiUrl);
+                document.getElementById('apiUrlMessage').innerHTML = '<p class="success">API URL saved successfully!</p>';
+            } else {
+                document.getElementById('apiUrlMessage').innerHTML = '<p class="error">Please enter a valid API URL</p>';
+            }
+        });
+
+        // Load API URL from local storage
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedApiUrl = localStorage.getItem('photoAppApiUrl');
+            if (savedApiUrl) {
+                document.getElementById('apiUrl').value = savedApiUrl;
+            }
+        });
+
+        // Image preview functionality
+        document.getElementById('photoFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('imagePreviewContainer').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Upload photo functionality
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const apiUrl = localStorage.getItem('photoAppApiUrl');
+            if (!apiUrl) {
+                document.getElementById('uploadMessage').innerHTML = '<p class="error">Please configure the API URL first</p>';
+                return;
+            }
+
+            const fileInput = document.getElementById('photoFile');
+            if (!fileInput.files.length) {
+                document.getElementById('uploadMessage').innerHTML = '<p class="error">Please select a file to upload</p>';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = async function(e) {
+                try {
+                    document.getElementById('uploadMessage').innerHTML = '<p>Uploading...</p>';
+                    
+                    const base64Data = e.target.result;
+                    const response = await fetch(`${apiUrl}/photos`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            image: base64Data,
+                            fileName: file.name
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        document.getElementById('uploadMessage').innerHTML = `
+                            <p class="success">Photo uploaded successfully!</p>
+                            <p>Photo ID: ${data.photoId}</p>
+                        `;
+                        
+                        // Add to gallery
+                        addPhotoToGallery({
+                            photoId: data.photoId,
+                            fileName: data.fileName,
+                            uploadTimestamp: data.uploadTimestamp,
+                            imageUrl: base64Data
+                        });
+                        
+                        // Reset form
+                        document.getElementById('uploadForm').reset();
+                        document.getElementById('imagePreviewContainer').style.display = 'none';
+                    } else {
+                        document.getElementById('uploadMessage').innerHTML = `
+                            <p class="error">Upload failed: ${data.error || 'Unknown error'}</p>
+                        `;
+                    }
+                } catch (error) {
+                    document.getElementById('uploadMessage').innerHTML = `
+                        <p class="error">Error: ${error.message}</p>
+                    `;
+                }
+            };
+            
+            reader.readAsDataURL(file);
+        });
+
+        // Get photo functionality
+        document.getElementById('getPhotoForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const apiUrl = localStorage.getItem('photoAppApiUrl');
+            if (!apiUrl) {
+                document.getElementById('photoResult').innerHTML = '<p class="error">Please configure the API URL first</p>';
+                return;
+            }
+
+            const photoId = document.getElementById('photoId').value.trim();
+            if (!photoId) {
+                document.getElementById('photoResult').innerHTML = '<p class="error">Please enter a photo ID</p>';
+                return;
+            }
+
+            try {
+                document.getElementById('photoResult').innerHTML = '<p>Loading photo...</p>';
+                
+                const response = await fetch(`${apiUrl}/photos/${photoId}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('photoResult').innerHTML = `
+                        <p class="success">Photo retrieved successfully!</p>
+                        <p>File Name: ${data.fileName}</p>
+                        <p>Upload Date: ${new Date(data.uploadTimestamp).toLocaleString()}</p>
+                        <p><a href="${data.downloadUrl}" target="_blank">Download Photo</a></p>
+                        <img src="${data.downloadUrl}" class="preview">
+                    `;
+                    
+                    // Add to gallery
+                    addPhotoToGallery({
+                        photoId: data.photoId,
+                        fileName: data.fileName,
+                        uploadTimestamp: data.uploadTimestamp,
+                        imageUrl: data.downloadUrl
+                    });
+                } else {
+                    document.getElementById('photoResult').innerHTML = `
+                        <p class="error">Failed to retrieve photo: ${data.error || 'Unknown error'}</p>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('photoResult').innerHTML = `
+                    <p class="error">Error: ${error.message}</p>
+                `;
+            }
+        });
+
+        // Function to add photo to gallery
+        function addPhotoToGallery(photo) {
+            const photoList = document.getElementById('photoList');
+            
+            // Check if photo already exists in gallery
+            const existingPhoto = document.querySelector(`[data-photo-id="${photo.photoId}"]`);
+            if (existingPhoto) {
+                // Update existing photo
+                existingPhoto.querySelector('img').src = photo.imageUrl;
+                return;
+            }
+            
+            // Create new photo item
+            const photoItem = document.createElement('div');
+            photoItem.className = 'photo-item';
+            photoItem.setAttribute('data-photo-id', photo.photoId);
+            
+            photoItem.innerHTML = `
+                <img src="${photo.imageUrl}" alt="${photo.fileName}">
+                <div class="photo-info">
+                    <p>${photo.fileName}</p>
+                    <p>ID: ${photo.photoId}</p>
+                    <p>${new Date(photo.uploadTimestamp).toLocaleString()}</p>
+                </div>
+            `;
+            
+            photoList.appendChild(photoItem);
+        }
+    </script>
+</body>
+</html>
