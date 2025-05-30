@@ -1,143 +1,125 @@
-# Serverless Photo Application
+# Q Dev Demo Reinforce Serverless Photo App
 
-A serverless application for uploading, storing, and retrieving photos using AWS services. This application provides a simple way to upload photos via a web interface, store them securely in S3, and retrieve them using pre-signed URLs.
+A serverless application for uploading, storing, and retrieving photos using AWS services.
 
 ## Architecture
 
-![Architecture Diagram](https://via.placeholder.com/800x400?text=Photo+App+Architecture+Diagram)
+This application uses a serverless architecture with the following AWS components:
+
+![Architecture Diagram](https://via.placeholder.com/800x400?text=Serverless+Photo+App+Architecture)
 
 ### Components
 
-- **Frontend**: Simple HTML/CSS/JavaScript web interface for uploading and retrieving photos
+- **Frontend**: Simple HTML/CSS/JavaScript web interface hosted in an S3 bucket
 - **API Gateway**: HTTP API with endpoints for uploading and retrieving photos
-- **Lambda Functions**: Serverless functions for handling photo uploads and retrievals
+- **Lambda Functions**: 
+  - `UploadPhotoFunction`: Handles photo uploads, stores in S3, saves metadata to DynamoDB
+  - `GetPhotoFunction`: Retrieves photo metadata and generates pre-signed URLs for downloads
 - **S3**: Private bucket for secure photo storage
 - **DynamoDB**: NoSQL database for storing photo metadata
 
 ### API Endpoints
 
-- `POST /photos`: Upload a photo and its metadata
-- `GET /photos/{photoId}`: Get a photo by ID and generate a pre-signed URL for download
+- `POST /photos`: Upload a photo with metadata
+- `GET /photos/{photoId}`: Get photo metadata and a pre-signed URL for download
 
-## Prerequisites
+## Setup Instructions
 
-- [AWS Account](https://aws.amazon.com/)
-- [AWS CLI](https://aws.amazon.com/cli/) configured with appropriate credentials
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-- [Python 3.9+](https://www.python.org/downloads/)
-- [Node.js](https://nodejs.org/) (for AWS CDK, if needed)
+### Prerequisites
 
-## Setup and Deployment
+- [AWS CLI](https://aws.amazon.com/cli/) installed and configured
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) installed
+- [Python 3.9](https://www.python.org/downloads/) or later
 
-### Local Development Setup
+### Deployment
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/photo-app.git
+1. Clone this repository:
+   ```
+   git clone <repository-url>
    cd photo-app
    ```
 
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+2. Build the application:
    ```
-
-3. Install test dependencies:
-   ```bash
-   pip install pytest pytest-mock
-   ```
-
-### Deploy to AWS
-
-1. Build the application:
-   ```bash
    sam build
    ```
 
-2. Deploy the application:
-   ```bash
+3. Deploy the application:
+   ```
    sam deploy --guided
    ```
-
-   Follow the prompts to configure your deployment. For the first deployment, you'll need to provide:
-   - Stack name (e.g., photo-app)
+   
+   Follow the prompts to configure your deployment. For first-time deployment, you'll need to provide:
+   - Stack name (e.g., `photo-app`)
    - AWS Region
-   - Parameter values (if any)
-   - Confirm IAM role creation
-   - Allow SAM CLI to create IAM roles
+   - Confirmation for IAM role creation
 
-3. Note the outputs from the deployment, including the API Gateway endpoint URL.
+4. After deployment, note the outputs:
+   - `ApiEndpoint`: The URL for your API
+   - `FrontendWebsiteURL`: The URL for the frontend website
 
-### Testing the Deployment
+5. Update the frontend with your API endpoint:
+   - Edit `src/frontend/index.html`
+   - Replace `const API_ENDPOINT = 'https://your-api-gateway-url.amazonaws.com';` with your actual API endpoint
+   - Upload the frontend files to the created S3 bucket:
+     ```
+     aws s3 sync src/frontend/ s3://<frontend-bucket-name>/
+     ```
 
-1. Open the frontend application in your browser:
-   ```bash
-   open src/frontend/index.html
+### Local Development
+
+#### Running the Frontend Locally
+
+You can test the frontend locally by opening `src/frontend/index.html` in a web browser. However, you'll need to:
+
+1. Update the `API_ENDPOINT` variable in the HTML file to point to your deployed API
+2. Handle CORS if testing with a deployed backend
+
+#### Testing Lambda Functions Locally
+
+1. Install dependencies:
+   ```
+   pip install -r src/upload_photo/requirements.txt
+   pip install -r src/get_photo/requirements.txt
    ```
 
-2. Configure the API URL in the application using the API Gateway endpoint URL from the deployment outputs.
+2. Invoke the Lambda functions locally:
+   ```
+   # For upload function
+   sam local invoke UploadPhotoFunction --event events/upload_event.json
+   
+   # For get function
+   sam local invoke GetPhotoFunction --event events/get_event.json
+   ```
 
-3. Upload a photo and verify that it appears in the gallery.
-
-4. Copy the photo ID and use it to retrieve the photo.
-
-## Running Tests
-
-Run unit tests:
-```bash
-pytest tests/unit
-```
-
-## Project Structure
-
-```
-photo-app/
-├── src/
-│   ├── upload_photo/
-│   │   ├── app.py                 # Lambda function for uploading photos
-│   │   └── requirements.txt       # Dependencies for upload function
-│   ├── get_photo/
-│   │   ├── app.py                 # Lambda function for retrieving photos
-│   │   └── requirements.txt       # Dependencies for get function
-│   └── frontend/
-│       └── index.html             # Simple web interface for testing
-├── tests/
-│   └── unit/
-│       ├── test_upload_photo.py   # Unit tests for upload function
-│       └── test_get_photo.py      # Unit tests for get function
-├── template.yaml                  # AWS SAM template
-└── README.md                      # Project documentation
-```
+3. Run unit tests:
+   ```
+   python -m unittest discover tests/unit
+   ```
 
 ## Security Considerations
 
-- **S3 Bucket**: The S3 bucket is configured as private, with no public access.
-- **IAM Permissions**: Lambda functions use least-privilege permissions.
-- **Pre-signed URLs**: Photos are accessed via pre-signed URLs that expire after a configurable time.
-- **API Gateway**: CORS is configured to allow requests from specific origins.
+- **S3 Bucket**: The photos bucket is private, and photos are only accessible via pre-signed URLs
+- **IAM Roles**: Lambda functions use least-privilege permissions
+- **API Access**: CORS is configured to restrict access to approved origins
+- **Data Protection**: DynamoDB point-in-time recovery is enabled
 
-## Assumptions and Limitations
+## Assumptions
 
-- **File Size**: The application assumes photos are less than 6MB (API Gateway payload limit).
-- **File Types**: The application accepts common image formats (JPEG, PNG, GIF, etc.).
-- **Authentication**: This demo does not include user authentication. In a production environment, you would want to add authentication and authorization.
-- **Scaling**: The serverless architecture will automatically scale with demand, but be aware of AWS service limits.
+- Users are authenticated through a separate system (not implemented in this demo)
+- File size limits are handled by API Gateway and Lambda defaults
+- Only image file types are supported (enforced by frontend)
+- Pre-signed URLs expire after 1 hour
 
 ## Future Enhancements
 
-- Add user authentication and authorization
-- Implement image resizing and optimization
-- Add support for photo albums and organization
-- Implement a more robust frontend with a modern framework (React, Vue, etc.)
-- Add support for image metadata (EXIF data)
-- Implement a CDN for faster photo delivery
+- User authentication and authorization
+- Photo sharing capabilities
+- Image processing (resizing, thumbnails)
+- Search functionality
+- Pagination for listing photos
+- Mobile application support
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+[MIT License](LICENSE)

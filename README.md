@@ -1,25 +1,16 @@
-# Serverless Photo Application
+# Q Dev Demo Reinforce Serverless Photo App
 
-This repository contains a serverless photo application built using AWS services. The application allows users to upload photos, store them in S3, and retrieve them using pre-signed URLs.
+This repository contains a serverless photo application built using AWS services.
 
 ## Project Structure
 
-The main project is located in the [photo-app](./photo-app) directory. Please refer to the [photo-app README](./photo-app/README.md) for detailed information about the project, including architecture, setup instructions, and usage.
+The main project is located in the [photo-app](./photo-app) directory.
 
 ## Features
 
-- Upload photos via a simple web interface
-- Store photos securely in S3
-- Store photo metadata in DynamoDB
-- Retrieve photos using pre-signed URLs
-- Serverless architecture using AWS Lambda and API Gateway
+- Upload photos to secure cloud storage
+- Retrieve photos via pre-signed URLs
+- Store and retrieve photo metadata
+- Simple web interface for interacting with the application
 
-## Technologies Used
-
-- AWS Lambda
-- Amazon API Gateway
-- Amazon S3
-- Amazon DynamoDB
-- AWS SAM (Serverless Application Model)
-- Python
-- HTML/CSS/JavaScript
+For more details, please see the [project README](./photo-app/README.md).
