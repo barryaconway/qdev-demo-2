@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q Dev Demo Reinforce Serverless Photo app</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .upload-section, .download-section {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .photo-item {
+            border: 1px solid #eee;
+            padding: 10px;
+            text-align: center;
+        }
+        .photo-item img {
+            max-width: 100%;
+            height: auto;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input[type="file"] {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Q Dev Demo Reinforce Serverless Photo app</h1>
+    
+    <div class="container">
+        <div class="upload-section">
+            <h2>Upload Photo</h2>
+            <form id="upload-form">
+                <input type="file" id="photo-upload" accept="image/*" required>
+                <button type="submit">Upload Photo</button>
+            </form>
+            <div id="upload-status"></div>
+        </div>
+        
+        <div class="download-section">
+            <h2>Your Photos</h2>
+            <button id="refresh-photos">Refresh Photos</button>
+            <div class="photo-grid" id="photo-grid">
+                <!-- Photos will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API endpoint - will be replaced with actual API Gateway URL
+        const API_ENDPOINT = 'https://your-api-gateway-url.amazonaws.com';
+        
+        // Handle photo upload
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('photo-upload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file to upload');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('upload-status');
+            statusDiv.textContent = 'Uploading...';
+            
+            try {
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Upload photo
+                const response = await fetch(`${API_ENDPOINT}/photos`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+                
+                const result = await response.json();
+                statusDiv.textContent = `Upload successful! Photo ID: ${result.photoId}`;
+                fileInput.value = '';
+                
+                // Refresh the photo grid
+                fetchPhotos();
+                
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                console.error('Upload error:', error);
+            }
+        });
+        
+        // Fetch and display photos
+        async function fetchPhotos() {
+            const photoGrid = document.getElementById('photo-grid');
+            photoGrid.innerHTML = 'Loading photos...';
+            
+            try {
+                // In a real app, you would have an endpoint to list all photos
+                // For now, we'll just simulate this with a placeholder
+                photoGrid.innerHTML = '<div class="photo-item">No photos available yet</div>';
+                
+                // Actual implementation would look something like:
+                /*
+                const response = await fetch(`${API_ENDPOINT}/photos`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch photos');
+                }
+                
+                const photos = await response.json();
+                
+                if (photos.length === 0) {
+                    photoGrid.innerHTML = '<div class="photo-item">No photos available yet</div>';
+                    return;
+                }
+                
+                photoGrid.innerHTML = '';
+                photos.forEach(photo => {
+                    const photoItem = document.createElement('div');
+                    photoItem.className = 'photo-item';
+                    
+                    const img = document.createElement('img');
+                    img.src = photo.url;
+                    img.alt = photo.fileName;
+                    
+                    const caption = document.createElement('p');
+                    caption.textContent = photo.fileName;
+                    
+                    photoItem.appendChild(img);
+                    photoItem.appendChild(caption);
+                    photoGrid.appendChild(photoItem);
+                });
+                */
+                
+            } catch (error) {
+                photoGrid.innerHTML = `<div class="photo-item">Error loading photos: ${error.message}</div>`;
+                console.error('Fetch error:', error);
+            }
+        }
+        
+        // Refresh photos button
+        document.getElementById('refresh-photos').addEventListener('click', fetchPhotos);
+        
+        // Initial load
+        fetchPhotos();
+    </script>
+</body>
+</html>

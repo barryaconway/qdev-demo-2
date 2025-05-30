@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless Photo Application
+  
+  This application enables users to upload and download photos via API Gateway,
+  with photos stored in S3 and metadata in DynamoDB.
+
+# Global values that are applied to all resources
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 128
+    Runtime: python3.9
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        PHOTOS_TABLE: !Ref PhotosTable
+        PHOTOS_BUCKET: !Ref PhotosBucket
+        PRESIGNED_URL_EXPIRATION: 3600  # 1 hour
+
+Resources:
+  # S3 Bucket for storing photos
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Private bucket - access only through pre-signed URLs
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # Enable server-side encryption
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      # Configure lifecycle rules if needed
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldObjects
+            Status: Enabled
+            ExpirationInDays: 365  # Delete objects after 1 year
+
+  # DynamoDB table for storing photo metadata
+  PhotosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Photos
+      BillingMode: PAY_PER_REQUEST  # On-demand capacity
+      AttributeDefinitions:
+        - AttributeName: photoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: photoId
+          KeyType: HASH
+      # Enable point-in-time recovery for data protection
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Lambda function for uploading photos
+  UploadPhotoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/upload_photo/
+      Handler: app.lambda_handler
+      Description: Handles photo uploads, stores in S3, and saves metadata to DynamoDB
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref PhotosBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PhotosTable
+      Events:
+        UploadAPI:
+          Type: HttpApi
+          Properties:
+            Path: /photos
+            Method: POST
+            ApiId: !Ref HttpApi
+
+  # Lambda function for retrieving photos
+  GetPhotoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/get_photo/
+      Handler: app.lambda_handler
+      Description: Retrieves photo metadata and generates pre-signed URL for download
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref PhotosBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref PhotosTable
+      Events:
+        GetAPI:
+          Type: HttpApi
+          Properties:
+            Path: /photos/{photoId}
+            Method: GET
+            ApiId: !Ref HttpApi
+
+  # HTTP API Gateway
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+
+  # S3 bucket for hosting the frontend
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      # Enable CORS for the frontend
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+
+  # Bucket policy to allow public read access to the frontend
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Principal: '*'
+
+Outputs:
+  # URL of the API Gateway endpoint
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+
+  # URL of the frontend website
+  FrontendWebsiteURL:
+    Description: URL for the frontend website
+    Value: !GetAtt FrontendBucket.WebsiteURL
+
+  # Name of the S3 bucket for photos
+  PhotosBucketName:
+    Description: Name of the S3 bucket where photos are stored
+    Value: !Ref PhotosBucket
+
+  # Name of the DynamoDB table
+  PhotosTableName:
+    Description: Name of the DynamoDB table for photo metadata
+    Value: !Ref PhotosTable
+
+  # ARN of the upload photo Lambda function
+  UploadPhotoFunctionArn:
+    Description: ARN of the upload photo Lambda function
+    Value: !GetAtt UploadPhotoFunction.Arn
+
+  # ARN of the get photo Lambda function
+  GetPhotoFunctionArn:
+    Description: ARN of the get photo Lambda function
+    Value: !GetAtt GetPhotoFunction.Arn
